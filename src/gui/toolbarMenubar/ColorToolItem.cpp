@@ -1,7 +1,10 @@
 #include "ColorToolItem.h"
 
+#include <cinttypes>
+
 #include <config.h>
 
+#include "control/ToolEnums.h"
 #include "gui/toolbarMenubar/icon/ColorSelectImage.h"
 #include "model/ToolbarColorNames.h"
 
@@ -78,7 +81,7 @@ auto ColorToolItem::getId() -> string {
     }
 
     char buffer[64];
-    sprintf(buffer, "COLOR(0x%06x)", uint32_t{this->color});
+    snprintf(buffer, sizeof(buffer), "COLOR(0x%06" PRIx32 ")", uint32_t{this->color});
     string id = buffer;
 
     return id;
@@ -105,16 +108,21 @@ void ColorToolItem::showColorchooser() {
  * Enable / Disable the tool item
  */
 void ColorToolItem::enable(bool enabled) {
-    if (!enabled && toolHandler->getToolType() == TOOL_ERASER) {
-        if (this->icon) {
+    if (!enabled && !toolHandler->hasCapability(TOOL_CAP_COLOR, ToolPointer::current) &&
+        toolHandler->hasCapability(TOOL_CAP_COLOR, ToolPointer::toolbar)) {
+        if (this->icon && toolHandler->triggeredByButton) {
+            // allow changes if currentTool has no colour capability
+            // and mainTool has Colour capability
             icon->setState(COLOR_ICON_STATE_PEN);
+            AbstractToolItem::enable(true);
+        } else {
+            // disallow changes in color
+            icon->setState(COLOR_ICON_STATE_DISABLED);
+            AbstractToolItem::enable(false);
         }
-        AbstractToolItem::enable(true);
-        switchToPen = true;
         return;
     }
 
-    switchToPen = false;
     AbstractToolItem::enable(enabled);
     if (this->icon) {
         if (enabled) {
@@ -126,10 +134,6 @@ void ColorToolItem::enable(bool enabled) {
 }
 
 void ColorToolItem::activated(GdkEvent* event, GtkMenuItem* menuitem, GtkToolButton* toolbutton) {
-    if (switchToPen) {
-        toolHandler->selectTool(TOOL_PEN, true);
-    }
-
     if (inUpdate) {
         return;
     }

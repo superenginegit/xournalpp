@@ -41,7 +41,7 @@ auto BaseExportJob::checkOverwriteBackgroundPDF(fs::path const& file) const -> b
     return true;
 }
 
-auto BaseExportJob::getFilterName() -> string {
+auto BaseExportJob::getFilterName() const -> string {
     GtkFileFilter* filter = gtk_file_chooser_get_filter(GTK_FILE_CHOOSER(dialog));
     return gtk_file_filter_get_name(filter);
 }
@@ -57,8 +57,9 @@ auto BaseExportJob::showFilechooser() -> bool {
     fs::path name = doc->createSaveFilename(Document::PDF, settings->getDefaultSaveName());
     doc->unlock();
 
-    gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(dialog), folder.string().c_str());
-    gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), name.string().c_str());
+    gtk_file_chooser_set_local_only(GTK_FILE_CHOOSER(dialog), true);
+    gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(dialog), Util::toGFilename(folder).c_str());
+    gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), Util::toGFilename(name).c_str());
 
     gtk_window_set_transient_for(GTK_WINDOW(dialog), GTK_WINDOW(this->control->getWindow()->getWindow()));
 
@@ -67,15 +68,10 @@ auto BaseExportJob::showFilechooser() -> bool {
             gtk_widget_destroy(dialog);
             return false;
         }
-        auto uri = [](char* uri) {
-            std::string ret{uri};
-            g_free(uri);
-            return ret;
-        }(gtk_file_chooser_get_uri(GTK_FILE_CHOOSER(dialog)));
-        this->filepath = Util::fromGtkFilename(gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog)));
-        Util::clearExtensions(this->filepath);
+        auto file =  Util::fromGFilename(gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog)));
+        Util::clearExtensions(file);
         // Since we add the extension after the OK button, we have to check manually on existing files
-        if (isUriValid(uri) && control->askToReplace(filepath)) {
+        if (testAndSetFilepath(std::move(file)) && control->askToReplace(this->filepath)) {
             break;
         }
     }
@@ -87,14 +83,17 @@ auto BaseExportJob::showFilechooser() -> bool {
     return true;
 }
 
-auto BaseExportJob::isUriValid(string& uri) -> bool {
-    if (!StringUtils::startsWith(uri, "file://")) {
-        string msg = FS(_F("Only local files are supported\nPath: {1}") % uri);
+auto BaseExportJob::testAndSetFilepath(fs::path file) -> bool {
+    try {
+        if(fs::is_directory(file.parent_path())){
+            this->filepath = std::move(file);
+            return true;
+        }
+    } catch (fs::filesystem_error const& e) {
+        string msg = FS(_F("Failed to resolve path with the following error:\n{1}") % e.what());
         XojMsgBox::showErrorToUser(control->getGtkWindow(), msg);
-        return false;
     }
-
-    return true;
+    return false;
 }
 
 void BaseExportJob::afterRun() {

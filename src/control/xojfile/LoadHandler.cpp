@@ -113,14 +113,15 @@ auto LoadHandler::openFile(fs::path const& filepath) -> bool {
         zip_file_t* mimetypeFp = zip_fopen(this->zipFp, "mimetype", 0);
         if (!mimetypeFp) {
             this->lastError = zip_error_strerror(zip_get_error(zipFp));
-            this->lastError = FS(_F("The file is no valid .xopp file (Mimetype missing): \"{1}\"") % filepath.string());
+            this->lastError =
+                    FS(_F("The file is no valid .xopp file (Mimetype missing): \"{1}\"") % filepath.u8string());
             return false;
         }
         char mimetype[25];
         // read the mimetype and a few more bytes to make sure we do not only read a subset
         zip_fread(mimetypeFp, mimetype, 25);
         if (!strcmp(mimetype, "application/xournal++")) {
-            this->lastError = FS(_F("The file is no valid .xopp file (Mimetype wrong): \"{1}\"") % filepath.string());
+            this->lastError = FS(_F("The file is no valid .xopp file (Mimetype wrong): \"{1}\"") % filepath.u8string());
             return false;
         }
         zip_fclose(mimetypeFp);
@@ -128,7 +129,8 @@ auto LoadHandler::openFile(fs::path const& filepath) -> bool {
         // Get the file version
         zip_file_t* versionFp = zip_fopen(this->zipFp, "META-INF/version", 0);
         if (!versionFp) {
-            this->lastError = FS(_F("The file is no valid .xopp file (Version missing): \"{1}\"") % filepath.string());
+            this->lastError =
+                    FS(_F("The file is no valid .xopp file (Version missing): \"{1}\"") % filepath.u8string());
             return false;
         }
         char versionString[50];
@@ -141,7 +143,7 @@ auto LoadHandler::openFile(fs::path const& filepath) -> bool {
             this->minimalFileVersion = std::stoi(match.str(2));
         } else {
             this->lastError = FS(_F("The file is not a valid .xopp file (Version string corrupted): \"{1}\"") %
-                                 filepath.string());
+                                 filepath.u8string());
             return false;
         }
         zip_fclose(versionFp);
@@ -152,7 +154,7 @@ auto LoadHandler::openFile(fs::path const& filepath) -> bool {
 
     // Fail if neither utility could open the file
     if (!this->zipFp && !this->gzFp) {
-        this->lastError = FS(_F("Could not open file: \"{1}\"") % filepath.string());
+        this->lastError = FS(_F("Could not open file: \"{1}\"") % filepath.u8string());
         return false;
     }
     return true;
@@ -350,7 +352,7 @@ void LoadHandler::parseBgPixmap() {
         // This is the new zip file attach domain
         gpointer data = nullptr;
         gsize dataLength = 0;
-        bool success = readZipAttachment(filepath.string(), data, dataLength);
+        bool success = readZipAttachment(filepath, data, dataLength);
         if (!success) {
             return;
         }
@@ -386,7 +388,7 @@ void LoadHandler::parseBgPixmap() {
 void LoadHandler::parseBgPdf() {
     int pageno = LoadHandlerHelper::getAttribInt("pageno", this);
     bool attachToDocument = false;
-    string pdfFilename;
+    fs::path pdfFilename;
 
     this->page->setBackgroundPdfPageNr(pageno - 1);
 
@@ -394,41 +396,24 @@ void LoadHandler::parseBgPdf() {
 
         if (this->pdfReplacementFilepath.empty()) {
             const char* domain = LoadHandlerHelper::getAttrib("domain", false, this);
-            const char* sFilename = LoadHandlerHelper::getAttrib("filename", false, this);
-
-            if (sFilename == nullptr) {
-                error("PDF Filename missing!");
-                return;
+            {
+                const char* sFilename = LoadHandlerHelper::getAttrib("filename", false, this);
+                if (sFilename == nullptr) {
+                    error("PDF Filename missing!");
+                    return;
+                }
+                pdfFilename = fs::u8path(sFilename);
             }
-
-            pdfFilename = sFilename;
 
             if (!strcmp("absolute", domain))  // Absolute OR relative path
             {
-                if (!g_file_test(sFilename, G_FILE_TEST_EXISTS)) {
-                    char* dirname = g_path_get_dirname(xournalFilepath.u8string().c_str());
-                    char* file = g_path_get_basename(sFilename);
-
-                    char* tmpFilename = g_build_path(G_DIR_SEPARATOR_S, dirname, file, nullptr);
-
-                    if (g_file_test(tmpFilename, G_FILE_TEST_EXISTS)) {
-                        pdfFilename = tmpFilename;
-                    }
-
-                    g_free(tmpFilename);
-                    g_free(dirname);
-                    g_free(file);
+                if (pdfFilename.is_relative()) {
+                    pdfFilename = xournalFilepath.remove_filename() / pdfFilename;
                 }
             } else if (!strcmp("attach", domain)) {
                 // Handle old format separately
                 if (this->isGzFile) {
-                    char* tmpFilename = g_strdup_printf("%s.%s", xournalFilepath.u8string().c_str(), sFilename);
-
-                    if (g_file_test(tmpFilename, G_FILE_TEST_EXISTS)) {
-                        pdfFilename = tmpFilename;
-                    }
-
-                    g_free(tmpFilename);
+                    pdfFilename = (fs::path{xournalFilepath} += ".") += pdfFilename;
                 } else {
                     gpointer data = nullptr;
                     gsize dataLength = 0;
@@ -450,15 +435,14 @@ void LoadHandler::parseBgPdf() {
                 error("%s", FC(_F("Unknown domain type: {1}") % domain));
                 return;
             }
-
         } else {
-            pdfFilename = this->pdfReplacementFilepath.string();
+            pdfFilename = this->pdfReplacementFilepath;
             attachToDocument = this->pdfReplacementAttach;
         }
 
         this->pdfFilenameParsed = true;
 
-        if (g_file_test(pdfFilename.c_str(), G_FILE_TEST_EXISTS)) {
+        if (fs::is_regular_file(pdfFilename)) {
             doc.readPdf(pdfFilename, false, attachToDocument);
             if (!doc.getLastErrorMsg().empty()) {
                 error("%s", FC(_F("Error reading PDF: {1}") % doc.getLastErrorMsg()));
@@ -467,7 +451,7 @@ void LoadHandler::parseBgPdf() {
             if (attachToDocument) {
                 this->attachedPdfMissing = true;
             } else {
-                this->pdfMissing = pdfFilename;
+                this->pdfMissing = pdfFilename.u8string();
             }
         }
     }
@@ -1048,5 +1032,3 @@ auto LoadHandler::getTempFileForPath(fs::path const& filename) -> fs::path {
 }
 
 auto LoadHandler::getFileVersion() const -> int { return this->fileVersion; }
-
-auto LoadHandler::getFileMinVersion() const -> int { return this->minimalFileVersion; }

@@ -169,8 +169,6 @@ auto Document::getEvMetadataFilename() -> fs::path {
     return fs::path{};
 }
 
-auto Document::isPdfDocumentLoaded() -> bool { return pdfDocument.isLoaded(); }
-
 auto Document::isAttachPdf() const -> bool { return this->attachPdf; }
 
 auto Document::findPdfPage(size_t pdfPage) -> size_t {
@@ -284,7 +282,7 @@ auto Document::readPdf(const fs::path& filename, bool initPages, bool attachToDo
 
     if (data != nullptr) {
         if (!pdfDocument.load(data, length, password, &popplerError)) {
-            lastError = FS(_F("Document not loaded! ({1}), {2}") % filename.string() % popplerError->message);
+            lastError = FS(_F("Document not loaded! ({1}), {2}") % filename.u8string() % popplerError->message);
             g_error_free(popplerError);
             unlock();
 
@@ -293,10 +291,10 @@ auto Document::readPdf(const fs::path& filename, bool initPages, bool attachToDo
     } else {
         if (!pdfDocument.load(filename, password, &popplerError)) {
             if (popplerError) {
-                lastError = FS(_F("Document not loaded! ({1}), {2}") % filename.string() % popplerError->message);
+                lastError = FS(_F("Document not loaded! ({1}), {2}") % filename.u8string() % popplerError->message);
                 g_error_free(popplerError);
             } else {
-                lastError = FS(_F("Document not loaded! ({1}), {2}") % filename.string() % "");
+                lastError = FS(_F("Document not loaded! ({1}), {2}") % filename.u8string() % "");
             }
             unlock();
             return false;

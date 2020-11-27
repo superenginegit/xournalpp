@@ -28,7 +28,6 @@ class ToolbarModel;
 class XournalView;
 class MainWindowToolbarMenu;
 
-
 class MainWindow: public GladeGui, public LayerCtrlListener {
 public:
     MainWindow(GladeSearchpath* gladeSearchPath, Control* control);
@@ -47,7 +46,7 @@ public:
     void setRecentMenu(GtkWidget* submenu);
     void toolbarSelected(ToolbarData* d);
     ToolbarData* getSelectedToolbar();
-    void reloadToolbars();
+    [[maybe_unused]] void reloadToolbars();
 
     /**
      * This methods are only used internally and for toolbar configuration
@@ -104,6 +103,8 @@ public:
      */
     void setTouchscreenScrollingForDeviceMapping();
 
+    void rebindMenubarAccelerators();
+
 private:
     void initXournalWidget();
 
@@ -114,7 +115,10 @@ private:
     static void toggleMenuBar(MainWindow* win);
 
     void createToolbarAndMenu();
-
+    static void rebindAcceleratorsMenuItem(GtkWidget* widget, gpointer user_data);
+    static void rebindAcceleratorsSubMenu(GtkWidget* widget, gpointer user_data);
+    static gboolean isKeyForClosure(GtkAccelKey* key, GClosure* closure, gpointer data);
+    static gboolean invokeMenu(GtkWidget* widget);
 
     static void buttonCloseSidebarClicked(GtkButton* button, MainWindow* win);
 
@@ -171,9 +175,5 @@ private:
     GtkWidget** toolbarWidgets;
 
     MainWindowToolbarMenu* toolbarSelectMenu;
-
-    /**
-     * Workaround for double hide menubar event
-     */
-    bool ignoreNextHideEvent;
+    GtkAccelGroup* globalAccelGroup;
 };

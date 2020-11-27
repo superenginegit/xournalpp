@@ -100,12 +100,6 @@ public:
      */
     bool close(bool allowDestroy = false, bool allowCancel = true);
 
-    /**
-     * Calls close, always forcing the document to be destroyed.
-     * @return The value returned by close
-     */
-    bool closeAndDestroy(bool allowCancel = false);
-
     // Asks user to replace an existing file when saving / exporting, since we add the extension
     // after the OK, we need to check manually
     bool askToReplace(fs::path const& filepath) const;
@@ -192,6 +186,7 @@ public:
 
     void addDefaultPage(string pageTemplate);
     void insertNewPage(size_t position);
+    void appendNewPdfPages();
     void insertPage(const PageRef& page, size_t position);
     void deletePage();
 
@@ -239,7 +234,6 @@ public:
     UndoRedoHandler* getUndoRedoHandler();
     MainWindow* getWindow();
     GtkWindow* getGtkWindow() const;
-    RecentManager* getRecentManager();
     ScrollHandler* getScrollHandler();
     PageRef getCurrentPage();
     size_t getCurrentPageNo();
