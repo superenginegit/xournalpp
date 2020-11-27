@@ -308,9 +308,11 @@ void ToolbarAdapter::toolbarDragDataReceivedCb(GtkToolbar* toolbar, GdkDragConte
 
         ToolbarData* tb = adapter->window->getSelectedToolbar();
         const char* name = adapter->window->getToolbarName(toolbar);
-
-        int newId = tb->insertItem(name, "SEPARATOR", pos);
-        ToolitemDragDrop::attachMetadata(GTK_WIDGET(it), newId, TOOL_ITEM_SEPARATOR);
+	
+	   //Seperators were always placed one slot too far to the right, so subtracting 1 from the position makes it work -- the real issue is probably in the determining of the position, as the misplacing can sometimes also happen to other Elements
+        if(pos > 0) pos--;
+	int newId = tb->insertItem(name, "SEPARATOR", pos);         
+	ToolitemDragDrop::attachMetadata(GTK_WIDGET(it), newId, TOOL_ITEM_SEPARATOR);
     } else {
         g_warning("toolbarDragDataReceivedCb: ToolItemType %i not handled!", d->type);
     }
